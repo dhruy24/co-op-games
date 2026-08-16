@@ -54,6 +54,21 @@ test("wrong player's throw is ignored", () => {
   assert.equal(next, state);
 });
 
+test("applyAction stores the raw throw inputs alongside the computed result", () => {
+  let state = javelinDuelGame.createInitialState();
+  state = javelinDuelGame.applyAction(state, 1, {
+    type: "throw",
+    angle: 35,
+    power: 77,
+    timingAccuracy: 0.6,
+    foul: false,
+  });
+  const throw1 = state.throws[1][0];
+  assert.equal(throw1.angle, 35);
+  assert.equal(throw1.power, 77);
+  assert.equal(throw1.timingAccuracy, 0.6);
+});
+
 test("a foul throw records distance 0 and still passes the turn", () => {
   let state = javelinDuelGame.createInitialState();
   state = javelinDuelGame.applyAction(state, 1, {

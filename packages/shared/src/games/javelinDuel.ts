@@ -9,6 +9,12 @@ const BASE_DISTANCE = 40; // meters, achieved at perfect angle/power/timing
 export interface ThrowResult {
   distance: number;
   foul: boolean;
+  /** Raw inputs that produced this result — kept so any client (thrower or
+   * spectating partner) can replay the same flight animation once this
+   * throw shows up in state, not just the player who submitted it. */
+  angle: number;
+  power: number;
+  timingAccuracy: number;
 }
 
 export interface JavelinDuelState {
@@ -76,7 +82,16 @@ export const javelinDuelGame: GameModule<JavelinDuelState, JavelinDuelAction> = 
     const distance = action.foul ? 0 : computeThrowDistance(action.angle, action.power, action.timingAccuracy);
     const throws = {
       ...state.throws,
-      [playerSlot]: [...state.throws[playerSlot], { distance, foul: action.foul }],
+      [playerSlot]: [
+        ...state.throws[playerSlot],
+        {
+          distance,
+          foul: action.foul,
+          angle: action.angle,
+          power: action.power,
+          timingAccuracy: action.timingAccuracy,
+        },
+      ],
     };
 
     const bothDone = throws[1].length >= MAX_THROWS && throws[2].length >= MAX_THROWS;
