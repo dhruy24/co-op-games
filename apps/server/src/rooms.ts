@@ -2,14 +2,14 @@ import {
   generateRoomCode,
   isValidRoomCode,
   normalizeRoomCode,
-  wordDuelGame,
+  getGame,
   type PlayerSlot,
-  type WordDuelState,
 } from "@co-op-games/shared";
 
 interface Room {
   code: string;
-  gameState: WordDuelState;
+  gameId: string;
+  gameState: unknown;
   slots: Record<PlayerSlot, string | null>; // socket.id occupying each slot
   partnerDisconnected: boolean;
   lastActivity: number;
@@ -24,14 +24,18 @@ const ROOM_MAX_ATTEMPTS_TO_GENERATE_CODE = 10;
 // consistent whether the process stays warm or gets recycled.
 const INACTIVE_ROOM_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
-export function createRoom(): Room {
+export function createRoom(gameId: string): Room | undefined {
+  const game = getGame(gameId);
+  if (!game) return undefined;
+
   let code = generateRoomCode();
   for (let i = 0; i < ROOM_MAX_ATTEMPTS_TO_GENERATE_CODE && rooms.has(code); i++) {
     code = generateRoomCode();
   }
   const room: Room = {
     code,
-    gameState: wordDuelGame.createInitialState(),
+    gameId,
+    gameState: game.createInitialState(),
     slots: { 1: null, 2: null },
     partnerDisconnected: false,
     lastActivity: Date.now(),
@@ -72,18 +76,13 @@ export function joinRoom(
   return { ok: true, room, slot: openSlot };
 }
 
-export function applyGuess(code: string, slot: PlayerSlot, guess: string): Room | undefined {
+/** Dispatches a player's action to whichever game module the room is running. */
+export function applyGameAction(code: string, slot: PlayerSlot, action: unknown): Room | undefined {
   const room = rooms.get(normalizeRoomCode(code));
   if (!room) return undefined;
-  room.gameState = wordDuelGame.applyAction(room.gameState, slot, { type: "guess", guess });
-  room.lastActivity = Date.now();
-  return room;
-}
-
-export function useHint(code: string, slot: PlayerSlot): Room | undefined {
-  const room = rooms.get(normalizeRoomCode(code));
-  if (!room) return undefined;
-  room.gameState = wordDuelGame.applyAction(room.gameState, slot, { type: "hint" });
+  const game = getGame(room.gameId);
+  if (!game) return undefined;
+  room.gameState = game.applyAction(room.gameState, slot, action);
   room.lastActivity = Date.now();
   return room;
 }
@@ -91,7 +90,9 @@ export function useHint(code: string, slot: PlayerSlot): Room | undefined {
 export function restartGame(code: string): Room | undefined {
   const room = rooms.get(normalizeRoomCode(code));
   if (!room) return undefined;
-  room.gameState = wordDuelGame.createInitialState();
+  const game = getGame(room.gameId);
+  if (!game) return undefined;
+  room.gameState = game.createInitialState();
   room.lastActivity = Date.now();
   return room;
 }

@@ -1,15 +1,14 @@
 import type { PlayerSlot } from "./gameModule.js";
-import type { WordDuelClientState } from "./games/wordDuel.js";
 
 /** Events the client emits to the server. */
 export interface ClientToServerEvents {
-  "room:create": (cb: (res: { code: string }) => void) => void;
+  "room:create": (payload: { gameId: string }, cb: (res: { ok: true; code: string } | { ok: false; error: string }) => void) => void;
   "room:join": (
     payload: { code: string },
     cb: (res: { ok: true; slot: PlayerSlot } | { ok: false; error: string }) => void
   ) => void;
-  "game:action": (payload: { code: string; guess: string }) => void;
-  "game:hint": (payload: { code: string }) => void;
+  /** `action` is opaque here — its shape is defined per-game (see each game's *Action type). */
+  "game:action": (payload: { code: string; action: unknown }) => void;
   "game:restart": (payload: { code: string }) => void;
 }
 
@@ -19,7 +18,8 @@ export interface RoomStateEvent {
   status: RoomStatus;
   yourSlot: PlayerSlot;
   playersConnected: number;
-  game: WordDuelClientState | null;
+  /** `state` is opaque here — its shape is defined per-game (see each game's *ClientState type). */
+  game: { gameId: string; state: unknown } | null;
   partnerDisconnected: boolean;
 }
 

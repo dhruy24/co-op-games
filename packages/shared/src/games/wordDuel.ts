@@ -80,8 +80,10 @@ function scoreGuess(guess: string, answer: string): LetterStatus[] {
   return statuses;
 }
 
-export const wordDuelGame: GameModule<WordDuelState, WordDuelAction> = {
+export const wordDuelGame: GameModule<WordDuelState, WordDuelAction, WordDuelClientState> = {
   id: WORD_DUEL_ID,
+
+  toClientState,
 
   createInitialState(): WordDuelState {
     return {

@@ -7,20 +7,37 @@ export type PlayerSlot = 1 | 2;
  * broadcast to both players. Implementations must be pure functions so
  * they're easy to unit test independent of any networking code.
  */
-export interface GameModule<State, Action> {
+export interface GameModule<State, Action, ClientState = State> {
   id: string;
   createInitialState(): State;
   /** Returns the next state. Should not mutate `state`. */
   applyAction(state: State, playerSlot: PlayerSlot, action: Action): State;
   isGameOver(state: State): boolean;
+  /**
+   * Maps internal state to what's safe to broadcast to clients (e.g. hiding
+   * an answer until the game ends). Defaults to identity if omitted — only
+   * override this for games that have something to hide mid-game.
+   */
+  toClientState?(state: State): ClientState;
 }
 
-const registry = new Map<string, GameModule<unknown, unknown>>();
+const registry = new Map<string, GameModule<unknown, unknown, unknown>>();
 
-export function registerGame<State, Action>(game: GameModule<State, Action>): void {
-  registry.set(game.id, game as GameModule<unknown, unknown>);
+export function registerGame<State, Action, ClientState = State>(
+  game: GameModule<State, Action, ClientState>
+): void {
+  registry.set(game.id, game as GameModule<unknown, unknown, unknown>);
 }
 
-export function getGame(id: string): GameModule<unknown, unknown> | undefined {
+export function getGame(id: string): GameModule<unknown, unknown, unknown> | undefined {
   return registry.get(id);
+}
+
+export function listGameIds(): string[] {
+  return [...registry.keys()];
+}
+
+/** Runs a game module's toClientState if it defines one, else passes state through unchanged. */
+export function getClientState(game: GameModule<unknown, unknown, unknown>, state: unknown): unknown {
+  return game.toClientState ? game.toClientState(state) : state;
 }

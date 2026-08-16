@@ -2,12 +2,11 @@ import { createServer } from "node:http";
 import express from "express";
 import cors from "cors";
 import { Server } from "socket.io";
-import { toClientState, type PlayerSlot } from "@co-op-games/shared";
+import { getGame, getClientState, type PlayerSlot } from "@co-op-games/shared";
 import {
   createRoom,
   joinRoom,
-  applyGuess,
-  useHint,
+  applyGameAction,
   restartGame,
   handleDisconnect,
   roomStatus,
@@ -35,6 +34,7 @@ const SESSION_EXPIRED_MESSAGE = "This game session expired due to inactivity. St
 
 function broadcastRoomState(room: Room) {
   const status = roomStatus(room);
+  const game = getGame(room.gameId);
   for (const slot of [1, 2] as PlayerSlot[]) {
     const socketId = room.slots[slot];
     if (!socketId) continue;
@@ -42,16 +42,20 @@ function broadcastRoomState(room: Room) {
       status,
       yourSlot: slot,
       playersConnected: (room.slots[1] !== null ? 1 : 0) + (room.slots[2] !== null ? 1 : 0),
-      game: toClientState(room.gameState),
+      game: game ? { gameId: room.gameId, state: getClientState(game, room.gameState) } : null,
       partnerDisconnected: room.partnerDisconnected,
     });
   }
 }
 
 io.on("connection", (socket) => {
-  socket.on("room:create", (cb) => {
-    const room = createRoom();
-    cb({ code: room.code });
+  socket.on("room:create", ({ gameId }, cb) => {
+    const room = createRoom(gameId);
+    if (!room) {
+      cb({ ok: false, error: "Unknown game." });
+      return;
+    }
+    cb({ ok: true, code: room.code });
   });
 
   socket.on("room:join", ({ code }, cb) => {
@@ -66,22 +70,14 @@ io.on("connection", (socket) => {
     broadcastRoomState(result.room);
   });
 
-  // applyGuess/useHint/restartGame only return undefined when the room
-  // itself is gone (expired/never existed) — a rejected-but-valid action
-  // (wrong turn, bad word, etc.) still returns the room unchanged, so an
+  // applyGameAction/restartGame only return undefined when the room itself
+  // is gone (expired/never existed) — a rejected-but-valid action (wrong
+  // turn, bad guess, etc.) still returns the room unchanged, so an
   // undefined result here specifically means "tell the player to restart".
-  socket.on("game:action", ({ code, guess }) => {
+  socket.on("game:action", ({ code, action }) => {
     const entry = socketRoomMap.get(socket.id);
     if (!entry || entry.code !== code) return;
-    const room = applyGuess(code, entry.slot, guess);
-    if (room) broadcastRoomState(room);
-    else socket.emit("room:error", { message: SESSION_EXPIRED_MESSAGE });
-  });
-
-  socket.on("game:hint", ({ code }) => {
-    const entry = socketRoomMap.get(socket.id);
-    if (!entry || entry.code !== code) return;
-    const room = useHint(code, entry.slot);
+    const room = applyGameAction(code, entry.slot, action);
     if (room) broadcastRoomState(room);
     else socket.emit("room:error", { message: SESSION_EXPIRED_MESSAGE });
   });

@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getSocket } from "@/lib/socket";
-import type { RoomStateEvent } from "@co-op-games/shared";
+import type { RoomStateEvent, WordDuelClientState, MemoryMatchClientState, JavelinDuelState } from "@co-op-games/shared";
+import { WORD_DUEL_ID, MEMORY_MATCH_ID, JAVELIN_DUEL_ID } from "@co-op-games/shared";
 import WordDuelBoard from "@/components/WordDuelBoard";
+import MemoryMatchBoard from "@/components/MemoryMatchBoard";
+import JavelinDuelGame from "@/components/JavelinDuelGame";
 import CopyIconButton from "@/components/CopyIconButton";
 
 export default function RoomPage() {
@@ -50,11 +53,19 @@ export default function RoomPage() {
   }, [code]);
 
   function handleGuess(guess: string) {
-    getSocket().emit("game:action", { code, guess });
+    getSocket().emit("game:action", { code, action: { type: "guess", guess } });
   }
 
   function handleHint() {
-    getSocket().emit("game:hint", { code });
+    getSocket().emit("game:action", { code, action: { type: "hint" } });
+  }
+
+  function handleFlip(index: number) {
+    getSocket().emit("game:action", { code, action: { type: "flip", index } });
+  }
+
+  function handleThrow(angle: number, power: number, timingAccuracy: number, foul: boolean) {
+    getSocket().emit("game:action", { code, action: { type: "throw", angle, power, timingAccuracy, foul } });
   }
 
   function handleRestart() {
@@ -134,12 +145,30 @@ export default function RoomPage() {
         </p>
       )}
 
-      {state.game && (
+      {state.game?.gameId === WORD_DUEL_ID && (
         <WordDuelBoard
-          game={state.game}
+          game={state.game.state as WordDuelClientState}
           yourSlot={state.yourSlot}
           onGuess={handleGuess}
           onHint={handleHint}
+          onRestart={handleRestart}
+        />
+      )}
+
+      {state.game?.gameId === MEMORY_MATCH_ID && (
+        <MemoryMatchBoard
+          game={state.game.state as MemoryMatchClientState}
+          yourSlot={state.yourSlot}
+          onFlip={handleFlip}
+          onRestart={handleRestart}
+        />
+      )}
+
+      {state.game?.gameId === JAVELIN_DUEL_ID && (
+        <JavelinDuelGame
+          game={state.game.state as JavelinDuelState}
+          yourSlot={state.yourSlot}
+          onThrow={handleThrow}
           onRestart={handleRestart}
         />
       )}
