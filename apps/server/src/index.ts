@@ -44,6 +44,7 @@ function broadcastRoomState(room: Room) {
       playersConnected: (room.slots[1] !== null ? 1 : 0) + (room.slots[2] !== null ? 1 : 0),
       game: game ? { gameId: room.gameId, state: getClientState(game, room.gameState) } : null,
       partnerDisconnected: room.partnerDisconnected,
+      names: room.names,
     });
   }
 }
@@ -58,8 +59,8 @@ io.on("connection", (socket) => {
     cb({ ok: true, code: room.code });
   });
 
-  socket.on("room:join", ({ code }, cb) => {
-    const result = joinRoom(code, socket.id);
+  socket.on("room:join", ({ code, name }, cb) => {
+    const result = joinRoom(code, socket.id, name);
     if (!result.ok) {
       cb(result);
       return;

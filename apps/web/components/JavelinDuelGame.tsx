@@ -28,6 +28,7 @@ interface ActiveFlight {
 interface Props {
   game: JavelinDuelState;
   yourSlot: PlayerSlot;
+  partnerName?: string | null;
   onThrow: (angle: number, power: number, timingAccuracy: number, foul: boolean) => void;
   onRestart: () => void;
 }
@@ -41,7 +42,7 @@ function flightDurationMs(distance: number): number {
   return 500 + Math.min(distance, FIELD_MAX_METERS) * 10;
 }
 
-export default function JavelinDuelGame({ game, yourSlot, onThrow, onRestart }: Props) {
+export default function JavelinDuelGame({ game, yourSlot, partnerName, onThrow, onRestart }: Props) {
   const isYourTurn = game.status === "playing" && game.turn === yourSlot;
   const yourThrowCount = game.throws[yourSlot]?.length ?? 0;
 
@@ -343,7 +344,7 @@ export default function JavelinDuelGame({ game, yourSlot, onThrow, onRestart }: 
         {([1, 2] as PlayerSlot[]).map((slot) => (
           <div key={slot} className="bg-white/5 rounded-lg border border-white/10 px-4 py-3">
             <div className="flex items-center justify-between text-sm text-slate-300 mb-1">
-              <span>{slot === yourSlot ? "You" : "Partner"}</span>
+              <span>{slot === yourSlot ? "You" : (partnerName ?? "Partner")}</span>
               <span>Best: {bestDistance(game, slot).toFixed(1)}m</span>
             </div>
             <div className="flex gap-2">

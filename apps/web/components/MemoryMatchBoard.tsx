@@ -5,11 +5,12 @@ import type { PlayerSlot, MemoryMatchClientState } from "@co-op-games/shared";
 interface Props {
   game: MemoryMatchClientState;
   yourSlot: PlayerSlot;
+  partnerName?: string | null;
   onFlip: (index: number) => void;
   onRestart: () => void;
 }
 
-export default function MemoryMatchBoard({ game, yourSlot, onFlip, onRestart }: Props) {
+export default function MemoryMatchBoard({ game, yourSlot, partnerName, onFlip, onRestart }: Props) {
   const isYourTurn = game.status === "playing" && game.turn === yourSlot;
 
   return (
@@ -46,7 +47,7 @@ export default function MemoryMatchBoard({ game, yourSlot, onFlip, onRestart }: 
 
       <div className="flex gap-6 text-sm text-slate-300">
         <span>You've found: {game.scores[yourSlot]}</span>
-        <span>Partner's found: {game.scores[yourSlot === 1 ? 2 : 1]}</span>
+        <span>{partnerName ?? "Partner"}&apos;s found: {game.scores[yourSlot === 1 ? 2 : 1]}</span>
       </div>
 
       {game.status === "won" && (

@@ -11,6 +11,7 @@ interface Room {
   gameId: string;
   gameState: unknown;
   slots: Record<PlayerSlot, string | null>; // socket.id occupying each slot
+  names: Record<PlayerSlot, string | null>; // player-chosen display name per slot
   partnerDisconnected: boolean;
   lastActivity: number;
 }
@@ -18,6 +19,12 @@ interface Room {
 const rooms = new Map<string, Room>();
 
 const ROOM_MAX_ATTEMPTS_TO_GENERATE_CODE = 10;
+const MAX_NAME_LENGTH = 20;
+
+function sanitizeName(name: string | undefined): string | null {
+  const trimmed = name?.trim().slice(0, MAX_NAME_LENGTH);
+  return trimmed ? trimmed : null;
+}
 // Matches the deploy platform's own idle-to-scale-down window (Cloud Run
 // scales to zero after ~15 min of no traffic anyway, wiping all in-memory
 // state), so cleaning up inactive rooms on the same cadence keeps behavior
@@ -37,6 +44,7 @@ export function createRoom(gameId: string): Room | undefined {
     gameId,
     gameState: game.createInitialState(),
     slots: { 1: null, 2: null },
+    names: { 1: null, 2: null },
     partnerDisconnected: false,
     lastActivity: Date.now(),
   };
@@ -50,7 +58,8 @@ export function getRoom(code: string): Room | undefined {
 
 export function joinRoom(
   rawCode: string,
-  socketId: string
+  socketId: string,
+  name?: string
 ): { ok: true; room: Room; slot: PlayerSlot } | { ok: false; error: string } {
   const code = normalizeRoomCode(rawCode);
   if (!isValidRoomCode(code)) return { ok: false, error: "That room code doesn't look right." };
@@ -63,6 +72,7 @@ export function joinRoom(
   // of handing out a second one and starving the real other player.
   const existingSlot: PlayerSlot | undefined = room.slots[1] === socketId ? 1 : room.slots[2] === socketId ? 2 : undefined;
   if (existingSlot !== undefined) {
+    room.names[existingSlot] = sanitizeName(name) ?? room.names[existingSlot];
     room.lastActivity = Date.now();
     return { ok: true, room, slot: existingSlot };
   }
@@ -71,6 +81,7 @@ export function joinRoom(
   if (openSlot === undefined) return { ok: false, error: "That room is already full." };
 
   room.slots[openSlot] = socketId;
+  room.names[openSlot] = sanitizeName(name);
   room.partnerDisconnected = false;
   room.lastActivity = Date.now();
   return { ok: true, room, slot: openSlot };
