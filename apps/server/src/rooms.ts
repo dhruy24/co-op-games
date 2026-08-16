@@ -18,7 +18,11 @@ interface Room {
 const rooms = new Map<string, Room>();
 
 const ROOM_MAX_ATTEMPTS_TO_GENERATE_CODE = 10;
-const INACTIVE_ROOM_TTL_MS = 30 * 60 * 1000; // 30 minutes
+// Matches the deploy platform's own idle-to-scale-down window (Cloud Run
+// scales to zero after ~15 min of no traffic anyway, wiping all in-memory
+// state), so cleaning up inactive rooms on the same cadence keeps behavior
+// consistent whether the process stays warm or gets recycled.
+const INACTIVE_ROOM_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 export function createRoom(): Room {
   let code = generateRoomCode();
@@ -48,7 +52,7 @@ export function joinRoom(
   if (!isValidRoomCode(code)) return { ok: false, error: "That room code doesn't look right." };
 
   const room = rooms.get(code);
-  if (!room) return { ok: false, error: "Room not found. Check the code and try again." };
+  if (!room) return { ok: false, error: "Room not found — it may have expired from inactivity, or the code is wrong." };
 
   // If this exact socket already holds a slot (e.g. a duplicate join call
   // from React StrictMode's double-effect in dev), return that slot instead
@@ -121,11 +125,15 @@ export function roomStatus(room: Room): "waiting" | "playing" {
   return room.slots[1] !== null && room.slots[2] !== null ? "playing" : "waiting";
 }
 
+/**
+ * Closes any room — occupied or not — that hasn't seen activity (a join,
+ * guess, hint, or restart) within INACTIVE_ROOM_TTL_MS. Simple by design:
+ * no separate grace period for occupied rooms, no reconnect notification.
+ */
 export function sweepInactiveRooms(): void {
   const now = Date.now();
   for (const [code, room] of rooms.entries()) {
-    const empty = room.slots[1] === null && room.slots[2] === null;
-    if (empty && now - room.lastActivity > INACTIVE_ROOM_TTL_MS) {
+    if (now - room.lastActivity > INACTIVE_ROOM_TTL_MS) {
       rooms.delete(code);
     }
   }

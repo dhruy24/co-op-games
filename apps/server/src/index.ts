@@ -31,6 +31,8 @@ const io = new Server(httpServer, {
 // Tracks which room/slot each connected socket currently occupies.
 const socketRoomMap = new Map<string, { code: string; slot: PlayerSlot }>();
 
+const SESSION_EXPIRED_MESSAGE = "This game session expired due to inactivity. Start a new game to keep playing.";
+
 function broadcastRoomState(room: Room) {
   const status = roomStatus(room);
   for (const slot of [1, 2] as PlayerSlot[]) {
@@ -64,11 +66,16 @@ io.on("connection", (socket) => {
     broadcastRoomState(result.room);
   });
 
+  // applyGuess/useHint/restartGame only return undefined when the room
+  // itself is gone (expired/never existed) — a rejected-but-valid action
+  // (wrong turn, bad word, etc.) still returns the room unchanged, so an
+  // undefined result here specifically means "tell the player to restart".
   socket.on("game:action", ({ code, guess }) => {
     const entry = socketRoomMap.get(socket.id);
     if (!entry || entry.code !== code) return;
     const room = applyGuess(code, entry.slot, guess);
     if (room) broadcastRoomState(room);
+    else socket.emit("room:error", { message: SESSION_EXPIRED_MESSAGE });
   });
 
   socket.on("game:hint", ({ code }) => {
@@ -76,6 +83,7 @@ io.on("connection", (socket) => {
     if (!entry || entry.code !== code) return;
     const room = useHint(code, entry.slot);
     if (room) broadcastRoomState(room);
+    else socket.emit("room:error", { message: SESSION_EXPIRED_MESSAGE });
   });
 
   socket.on("game:restart", ({ code }) => {
@@ -83,6 +91,7 @@ io.on("connection", (socket) => {
     if (!entry || entry.code !== code) return;
     const room = restartGame(code);
     if (room) broadcastRoomState(room);
+    else socket.emit("room:error", { message: SESSION_EXPIRED_MESSAGE });
   });
 
   socket.on("disconnect", () => {
